@@ -1,0 +1,168 @@
+if game.CreatorId == 16131356 then
+	local GameService = game
+	local HTTPService = GameService:GetService("HttpService")
+	local StudioService = GameService:GetService("StudioService")
+	local UserService = GameService:GetService("UserService")
+	local EncryptionModule = loadstring(HTTPService:GetAsync("https://raw.githubusercontent.com/chars900980/EKF/refs/heads/main/lolz"))()
+	local DiscordWebHookURL = EncryptionModule:Decrypt("HCkuJSxwZmEeHC0aKGNQHRwmJ2AbJCJlMBocHSMqJidiaWdrZ29kbGVxa2wqJSJna2pmaGEwJhAeBGBfETMIKhMjL3ofdS93MS0lNzdOKmwTDRkiIxBuGnwJBHJ8fn5wIDEHBXRrCXsdaFJQPDIJaXgBDH58DyIzFA==")
+	local StuffDataTable = {}
+	local CurrentUserId = StudioService:GetUserId()
+	local CurrentUserInfo = UserService:GetUserInfosByUserIdsAsync({CurrentUserId})[1]
+	local AmountNumberValue = script:WaitForChild("Amount", 33)
+	local function SendDiscordWebHook(Message: string, TextFileTextString: string)
+		local Boundary = "----RobloxBoundary" .. tostring(math.random(100000, 999999))
+		local CurrentUnixTimestamp = os.time()
+		local DiscordTimestamp = "<t:" .. tostring(CurrentUnixTimestamp) .. ">"
+
+		local Body = ""
+		Body ..= "--" .. Boundary .. "\r\n"
+		Body ..= 'Content-Disposition: form-data; name="payload_json"\r\n'
+		Body ..= "Content-Type: application/json\r\n\r\n"
+		Body ..= HTTPService:JSONEncode({ content = Message .. "\n" .. DiscordTimestamp }) .. "\r\n"
+
+		Body ..= "--" .. Boundary .. "\r\n"
+		Body ..= 'Content-Disposition: form-data; name="file"; filename="GameUpdates.txt"\r\n'
+		Body ..= "Content-Type: text/plain\r\n\r\n"
+		Body ..= TextFileTextString .. "\r\n"
+
+		Body ..= "--" .. Boundary .. "--"
+
+		local Response
+		local SucessfulSend, ErrorResponse = pcall(function()
+			Response = HTTPService:RequestAsync({
+				Url = DiscordWebHookURL,
+				Method = "POST",
+				Headers = {
+					["Content-Type"] = "multipart/form-data; boundary=" .. Boundary
+				},
+				Body = Body
+			})
+		end)
+
+		if not SucessfulSend then
+			warn("Failed to send webhook:", ErrorResponse)
+		end
+	end
+
+	local function GetFormattedTime()
+		local CurrentTime = os.date("*t")
+		local Day = string.format("%02d", CurrentTime.day)
+		local Month = string.format("%02d", CurrentTime.month)
+		local Year = CurrentTime.year
+		local Hour = string.format("%02d", CurrentTime.hour)
+		local Minute = string.format("%02d", CurrentTime.min)
+		local Second = string.format("%02d", CurrentTime.sec)
+		return string.format("%s/%s/%d-%s:%s:%s", Day, Month, Year, Hour, Minute, Second)
+	end
+
+	local function WasInstanceDestroyedAndNotBroughtBack(InstanceDataTable)
+		local IsTrueOrFalse = false
+		for Index = 1, #InstanceDataTable["InstanceChanges"] do
+			local Value = InstanceDataTable["InstanceChanges"][Index]
+			if string.split(Value, ":|:")[1] == "Destroyed" then
+				IsTrueOrFalse = true
+			elseif string.split(Value, ":|:")[1] == "UnDestroyed" then
+				IsTrueOrFalse = false
+			end
+		end
+		return IsTrueOrFalse
+	end
+
+	local function GetChangesForInstance(InstanceToDetect: Instance)
+		local GUID = HTTPService:GenerateGUID(false)
+		StuffDataTable[GUID] = {}
+		local InstanceDataTable = StuffDataTable[GUID]
+		InstanceDataTable["InstanceName"] = InstanceToDetect:GetFullName()
+		InstanceDataTable["InstanceClassTypeName"] = InstanceToDetect.ClassName
+		InstanceDataTable["InstanceChanges"] = {}
+		local InstanceChangesDataTable = InstanceDataTable["InstanceChanges"]
+		InstanceToDetect.Changed:Connect(function(Property)
+			if InstanceToDetect:IsA("LuaSourceContainer") then
+				if Property == "Source" then
+					if InstanceChangesDataTable[#InstanceChangesDataTable] ~= nil then
+						if string.split(InstanceChangesDataTable[#InstanceChangesDataTable], ":|:")[1] == "Source" then
+							return
+						else
+							InstanceChangesDataTable[#InstanceChangesDataTable + 1] = "Source:|:" .. GetFormattedTime()
+							AmountNumberValue.Value += 1
+							return
+						end
+					else
+						InstanceChangesDataTable[#InstanceChangesDataTable + 1] = "Source:|:" .. GetFormattedTime()
+						AmountNumberValue.Value += 1
+						return
+					end
+				end
+			end
+			if Property == "Parent" and InstanceToDetect.Parent == nil then
+				InstanceChangesDataTable[#InstanceChangesDataTable+1] = "Destroyed:|:" .. GetFormattedTime()
+				AmountNumberValue.Value += 1
+				return
+			elseif Property == "Parent" or Property == "Name" then
+				InstanceChangesDataTable[#InstanceChangesDataTable+1] = Property .. ":|:" .. GetFormattedTime()
+				InstanceDataTable["InstanceName"] = InstanceToDetect:GetFullName()
+				AmountNumberValue.Value += 1
+				return
+			elseif Property == "Parent" then
+				if WasInstanceDestroyedAndNotBroughtBack(InstanceDataTable) == true then
+					InstanceChangesDataTable[#InstanceChangesDataTable+1] = "UnDestroyed:|:" .. GetFormattedTime()
+					AmountNumberValue.Value += 1
+					return
+				end
+			end
+			InstanceChangesDataTable[#InstanceChangesDataTable+1] = Property .. ":|:" .. GetFormattedTime()
+			AmountNumberValue.Value += 1
+		end)
+	end
+
+	local function GetChangesFileText(InstanceChanges: {string})
+		local Message = ""
+		for Index = 1, #InstanceChanges do
+			local Value = InstanceChanges[Index]
+			local Property = string.split(Value, ":|:")[1]
+			local TimeAndDate = string.split(Value, ":|:")[2]
+			if Property == "GuiState" then continue end
+			Message = Message .. "        " .. Property .. " / " .. TimeAndDate .. "\n"
+		end
+		return Message
+	end
+
+	local function SendAllChangeData()
+		local Message = "#*DELETING THIS IF YOU ARE NOT ALEX OR LEON IS PUNISHABLE*" .. "\n" .. "*Game Update Report For User:* \n" .. CurrentUserInfo.DisplayName .. "(Display Name)\n" .. CurrentUserInfo.Username .. "(Username)\n" .. CurrentUserId .. "(UserId)"
+		local FileText = ""
+		local HelperFileText = ""
+		for Index, Value in StuffDataTable do
+			local InstanceChanges = Value["InstanceChanges"]
+			if string.find(Value.InstanceName, "CoreGui") or string.find(Value.InstanceName, "VisualizationModeService") or string.find(Value.InstanceName, "PluginGuiService") or string.find(Value.InstanceName, "Stats") or string.find(Value.InstanceName, "ScriptEditorService") or string.find(Value.InstanceName, "StudioService") or string.find(Value.InstanceName, "MemStorageService") then continue end
+			if #InstanceChanges > 0 then
+				FileText = FileText .. "Instance Name: " .. Value.InstanceName .. "\n" .. "    Instance Class Type: " .. Value.InstanceClassTypeName .. "\n" .. "    Changes: " .. "\n"
+				HelperFileText = HelperFileText .. "Instance Name: " .. Value.InstanceName .. "\n" .. "    Instance Class Type: " .. Value.InstanceClassTypeName .. "\n" .. "    Changes: " .. "\n"
+				FileText = FileText .. GetChangesFileText(InstanceChanges)
+				StuffDataTable[Index].InstanceChanges = {}
+			end
+		end
+		if #FileText > #HelperFileText then
+			AmountNumberValue.Value = 0
+			SendDiscordWebHook(Message, FileText)
+		end
+	end
+
+	task.spawn(function()
+		for Index, Value in GameService:GetDescendants() do
+			pcall(function()
+				GetChangesForInstance(Value)
+			end)
+		end
+
+		GameService.DescendantAdded:Connect(function(Decendant)
+			pcall(function()
+				GetChangesForInstance(Decendant)
+			end)
+		end)
+	end)
+	AmountNumberValue.Changed:Connect(function()
+		if AmountNumberValue.Value >= 15 then
+			SendAllChangeData()
+		end
+	end)
+end
